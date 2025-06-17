@@ -21,6 +21,7 @@ from skimage.transform import resize
 # Paso 1: Importar las arquitecturas desde el archivo model.py
 # -----------------------------------------------------------------------------
 # Asegúrate de que 'model.py' esté en el mismo directorio.
+# Nota: La siguiente línea asumirá que 'model.py' existe. Si no, se producirá un error.
 from model import (build_simple_generator, build_simple_discriminator,
                    build_improved_generator, build_improved_discriminator)
 
@@ -28,23 +29,23 @@ from model import (build_simple_generator, build_simple_discriminator,
 # Paso 2: Configuración y Hiperparámetros
 # -----------------------------------------------------------------------------
 # Elige qué arquitectura usar. True para la mejorada, False para la simple.
-USE_IMPROVED_MODEL = True
+USE_IMPROVED_MODEL = True # Se usará la implementación de ejemplo de arriba
 
 # Hiperparámetros comunes
 EPOCHS = 20000
 BATCH_SIZE = 128
 SAMPLE_INTERVAL = 500  # Frecuencia en épocas para guardar imágenes de muestra
 
-# Crear un directorio para guardar las imágenes generadas
+# Crear directorios para guardar las imágenes generadas y de comparación
 os.makedirs("images", exist_ok=True)
+os.makedirs("comparison", exist_ok=True)  # <-- AÑADIDO
 
 # -----------------------------------------------------------------------------
 # Paso 3: Cargar y Preprocesar el Dataset (MNIST)
 # -----------------------------------------------------------------------------
 (X_train, _), (_, _) = mnist.load_data()
 
-# Normalizar las imágenes en el rango [-1, 1] es a menudo mejor para GANs
-# que usan 'tanh' como activación final. Como aquí usamos 'sigmoid', [0, 1] está bien.
+# Normalizar las imágenes en el rango [0, 1]
 X_train = X_train / 255.0
 
 # -----------------------------------------------------------------------------
@@ -149,6 +150,40 @@ def sample_and_save_images(epoch, generator, latent_dim):
     fig.savefig(f"images/mnist_{epoch:05d}.png")
     plt.close()
 
+# <-- FUNCIÓN AÑADIDA -->
+def save_comparison_images(epoch, generator, latent_dim, real_dataset, num_samples=5):
+    """
+    Guarda una comparativa de imágenes reales del dataset y imágenes generadas.
+    """
+    # --- 1. Preparar las imágenes ---
+    # Seleccionar N imágenes reales aleatorias del dataset
+    idx = np.random.randint(0, real_dataset.shape[0], num_samples)
+    real_imgs = real_dataset[idx]
+
+    # Generar N imágenes falsas
+    noise = np.random.normal(0, 1, (num_samples, latent_dim))
+    fake_imgs = generator.predict(noise, verbose=0)
+
+    # --- 2. Crear la figura y guardar ---
+    fig, axs = plt.subplots(2, num_samples, figsize=(12, 5))
+    fig.suptitle(f'Época: {epoch}', fontsize=16)
+
+    for i in range(num_samples):
+        # Mostrar imágenes originales en la primera fila
+        axs[0, i].imshow(real_imgs[i], cmap='gray')
+        axs[0, i].set_title("Original")
+        axs[0, i].axis('off')
+
+        # Mostrar imágenes generadas en la segunda fila
+        axs[1, i].imshow(fake_imgs[i], cmap='gray')
+        axs[1, i].set_title("Generada")
+        axs[1, i].axis('off')
+
+    # Guardar la figura en el directorio 'comparison'
+    fig.savefig(f"comparison/compare_{epoch:05d}.png")
+    plt.close(fig)
+
+
 def train():
     """Función principal para ejecutar el bucle de entrenamiento."""
     real_labels = np.ones((BATCH_SIZE, 1))
@@ -185,6 +220,9 @@ def train():
         # El cálculo del FID es costoso, se hace periódicamente
         if epoch % SAMPLE_INTERVAL == 0:
             sample_and_save_images(epoch, generator, latent_dim)
+            
+            # <-- LLAMADA A LA FUNCIÓN AÑADIDA -->
+            save_comparison_images(epoch, generator, latent_dim, X_train, num_samples=5)
 
             # 1. Preparar imágenes reales
             idx_fid = np.random.randint(0, X_train.shape[0], FID_SAMPLES)

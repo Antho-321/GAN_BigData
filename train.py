@@ -37,8 +37,8 @@ BATCH_SIZE = 128
 SAMPLE_INTERVAL = 500  # Frecuencia en épocas para guardar imágenes de muestra
 
 # Crear directorios para guardar las imágenes generadas y de comparación
-os.makedirs("images", exist_ok=True)
-os.makedirs("comparison", exist_ok=True)  # <-- AÑADIDO
+os.makedirs("/content/drive/MyDrive/colab/images", exist_ok=True)
+os.makedirs("/content/drive/MyDrive/colab/comparison", exist_ok=True)  # <-- AÑADIDO
 
 # -----------------------------------------------------------------------------
 # Paso 3: Cargar y Preprocesar el Dataset (MNIST)
@@ -147,7 +147,7 @@ def sample_and_save_images(epoch, generator, latent_dim):
             axs[i, j].imshow(gen_imgs[cnt], cmap='gray')
             axs[i, j].axis('off')
             cnt += 1
-    fig.savefig(f"images/mnist_{epoch:05d}.png")
+    fig.savefig(f"/content/drive/MyDrive/colab/images/mnist_{epoch:05d}.png")
     plt.close()
 
 # <-- FUNCIÓN AÑADIDA -->
@@ -180,7 +180,7 @@ def save_comparison_images(epoch, generator, latent_dim, real_dataset, num_sampl
         axs[1, i].axis('off')
 
     # Guardar la figura en el directorio 'comparison'
-    fig.savefig(f"comparison/compare_{epoch:05d}.png")
+    fig.savefig(f"/content/drive/MyDrive/colab/comparison/compare_{epoch:05d}.png")
     plt.close(fig)
 
 

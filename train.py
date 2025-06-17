@@ -31,7 +31,7 @@ from model import (build_simple_generator, build_simple_discriminator,
 USE_IMPROVED_MODEL = True
 
 # Hiperparámetros comunes
-EPOCHS = 700
+EPOCHS = 20000
 BATCH_SIZE = 128
 SAMPLE_INTERVAL = 500  # Frecuencia en épocas para guardar imágenes de muestra
 

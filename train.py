@@ -6,8 +6,8 @@ from tensorflow.keras.applications.inception_v3 import InceptionV3
 from tensorflow.keras.optimizers import Adam
 
 import config
-from model import build_generator, build_discriminator, batch_fid
-from utils import (sample_images, scale_and_convert_to_rgb,
+from model import build_generator, build_discriminator
+from utils import (sample_images, scale_and_convert_to_rgb, batch_fid,
                    guardar_imagenes_evaluacion)
 
 # ---------- MAIN ----------

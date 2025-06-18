@@ -100,6 +100,75 @@ def scale_and_convert_to_rgb(images):
     
     return images_rgb
 
+def guardar_imagenes_evaluacion(X_train, generator, latent_dim, epochs, num_imagenes=10):
+    """
+    Guarda una muestra de 10 imágenes reales antes del entrenamiento y
+    10 imágenes generadas con el modelo final después del entrenamiento.
+
+    Args:
+        X_train (np.array): El conjunto de datos de entrenamiento real.
+        generator (tf.keras.Model): El modelo generador ya entrenado.
+        latent_dim (int): La dimensión del espacio latente.
+        epochs (int): El número total de épocas de entrenamiento (para etiquetar el archivo).
+        num_imagenes (int): El número de imágenes a guardar (por defecto, 10).
+    """
+    # Crear una carpeta específica para estas imágenes de evaluación
+    os.makedirs("/content/drive/MyDrive/Colab Notebooks/evaluacion", exist_ok=True)
+    
+    print("\n" + "="*50)
+    print("INICIANDO FASE DE EVALUACIÓN FINAL")
+    print("="*50)
+
+    # --- 1. Guardar 10 imágenes reales del dataset ---
+    print(f"Guardando {num_imagenes} imágenes reales de muestra...")
+    
+    # Seleccionar imágenes reales al azar
+    idx = np.random.randint(0, X_train.shape[0], num_imagenes)
+    real_imgs = X_train[idx]
+    
+    # Reescalar de [-1, 1] a [0, 1] para visualización
+    real_imgs = 0.5 * real_imgs + 0.5
+
+    # Crear y guardar la figura
+    fig, axs = plt.subplots(2, 5, figsize=(8, 4))
+    count = 0
+    for i in range(2):
+        for j in range(5):
+            axs[i, j].imshow(real_imgs[count, :, :, 0], cmap='gray')
+            axs[i, j].axis('off')
+            count += 1
+    
+    plt.suptitle("10 Muestras Reales del Dataset (Antes del Entrenamiento)")
+    fig.savefig("/content/drive/MyDrive/Colab Notebooks/evaluacion/muestras_reales.png")
+    plt.close(fig)
+    print("Imágenes reales guardadas en '/content/drive/MyDrive/Colab Notebooks/evaluacion/muestras_reales.png'")
+
+
+    # --- 2. Guardar 10 imágenes generadas con el modelo final ---
+    print(f"\nGenerando y guardando {num_imagenes} imágenes con el modelo final...")
+
+    # Generar imágenes
+    noise = np.random.normal(0, 1, (num_imagenes, latent_dim))
+    gen_imgs = generator.predict(noise, verbose=0)
+    
+    # Reescalar de [-1, 1] a [0, 1]
+    gen_imgs = 0.5 * gen_imgs + 0.5
+
+    # Crear y guardar la figura
+    fig, axs = plt.subplots(2, 5, figsize=(8, 4))
+    count = 0
+    for i in range(2):
+        for j in range(5):
+            axs[i, j].imshow(gen_imgs[count, :, :, 0], cmap='gray')
+            axs[i, j].axis('off')
+            count += 1
+            
+    plt.suptitle(f"10 Imágenes Generadas (Modelo Final - Época {epochs})")
+    fig.savefig(f"/content/drive/MyDrive/Colab Notebooks/evaluacion/imagenes_generadas_final_epoch_{epochs}.png")
+    plt.close(fig)
+    print(f"Imágenes generadas guardadas en '/content/drive/MyDrive/Colab Notebooks/evaluacion/imagenes_generadas_final_epoch_{epochs}.png'")
+    print("\n" + "="*50)
+
 def calculate_fid(model, images1, images2):
     """
     Calcula el Fréchet Inception Distance (FID) entre dos grupos de imágenes.
@@ -196,3 +265,12 @@ def train(epochs, batch_size, sample_interval):
 
 # Iniciar entrenamiento
 train(epochs=epochs, batch_size=batch_size, sample_interval=save_interval)
+
+guardar_imagenes_evaluacion(
+    X_train=X_train,
+    generator=generator,
+    latent_dim=latent_dim,
+    epochs=epochs
+)
+
+print("\nProceso de entrenamiento y evaluación completado.")

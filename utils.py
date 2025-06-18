@@ -9,10 +9,31 @@ from tensorflow.keras.applications.inception_v3 import preprocess_input
 from PIL import Image
 
 def scale_and_convert_to_rgb(images, inception_input_shape):
-    """Redimensiona imágenes y las convierte a 3 canales (RGB) para InceptionV3."""
-    images_rescaled = (images + 1) * 127.5
-    images_resized = tf.image.resize(images_rescaled, (inception_input_shape[0], inception_input_shape[1]), method='nearest')
-    images_rgb = tf.image.grayscale_to_rgb(images_resized)
+    """
+    - images deben estar en el rango [-1, 1].
+    - Devuelve un tensor (batch, H, W, 3) adecuado para Inception V3.
+    """
+    images = tf.convert_to_tensor(images, dtype=tf.float32)
+
+    # ↳ Si vienen como (batch, h, w), añadimos canal = 1
+    if images.shape.rank == 3:                 # (B, H, W)
+        images = images[..., tf.newaxis]       # → (B, H, W, 1)
+
+    # Re-escala de [-1,1] → [0,255]
+    images_rescaled = (images + 1.0) * 127.5
+
+    # Redimensiona al tamaño mínimo de Inception (75×75 aquí)
+    target_h, target_w = inception_input_shape[:2]
+    images_resized = tf.image.resize(images_rescaled,
+                                     (target_h, target_w),
+                                     method='bilinear')
+
+    # Convierte 1 canal → 3 canales. Si ya son 3, no hace nada.
+    if images_resized.shape[-1] == 1:
+        images_rgb = tf.image.grayscale_to_rgb(images_resized)
+    else:
+        images_rgb = images_resized
+
     return images_rgb
 
 def calculate_fid(model, images1, images2):

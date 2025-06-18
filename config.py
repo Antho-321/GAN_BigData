@@ -18,7 +18,7 @@ INCEPTION_INPUT_SHAPE = (75, 75, 3)
 FID_BATCH_SIZE = 512 # Usar un batch más grande para un cálculo de FID más estable
 
 # --- Rutas y Directorios ---
-GENERATED_IMAGES_DIR = "generated_images"
+GENERATED_IMAGES_DIR = "/content/drive/MyDrive/Colab Notebooks/generated_images"
 EVALUATION_DIR = "/content/drive/MyDrive/Colab Notebooks/evaluacion" # Puedes cambiar esta ruta
 
 # --- Semillas para reproducibilidad ---

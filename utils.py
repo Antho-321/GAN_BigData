@@ -113,3 +113,34 @@ def save_initial_images(generator, latent_dim, img_dir, num_images=16):
         else:
             pil_img = Image.fromarray(img)
         pil_img.save(os.path.join(img_dir, f"init_{i:03d}.png"))
+
+def save_real_images_sample(real_images, img_dir, num_images=16):
+    """
+    Toma una muestra de imágenes reales del dataset, las reescala y las guarda.
+
+    Args:
+        real_images (np.array): El array con las imágenes reales (ej. X_train).
+        img_dir (str): El directorio donde se guardarán las imágenes.
+        num_images (int): El número de imágenes de muestra a guardar.
+    """
+    print(f"Guardando {num_images} imágenes reales de muestra...")
+    os.makedirs(img_dir, exist_ok=True)
+    
+    # 1) Tomar una muestra aleatoria de las imágenes reales
+    idx = np.random.randint(0, real_images.shape[0], num_images)
+    sample_imgs = real_images[idx]
+    
+    # 2) Reescalar de [-1, 1] a [0, 255] para poder guardarlas
+    sample_imgs = 0.5 * sample_imgs + 0.5
+    sample_imgs = (sample_imgs * 255).astype(np.uint8)
+    
+    # 3) Guardar cada una
+    for i, img in enumerate(sample_imgs):
+        # Si es escala de grises
+        if img.shape[-1] == 1:
+            img = img.squeeze(-1)
+            pil_img = Image.fromarray(img, mode='L')
+        else:
+            pil_img = Image.fromarray(img)
+        # Guardamos con un nombre distintivo, como "real_XXX.png"
+        pil_img.save(os.path.join(img_dir, f"real_{i:03d}.png"))

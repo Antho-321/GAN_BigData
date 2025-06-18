@@ -58,7 +58,7 @@ def main():
                             input_shape=config.INCEPTION_INPUT_SHAPE)
     inception.trainable = False
     
-    stats = np.load(os.path.join(config.CACHE_DIR, "fid_mnist.npz"))
+    stats = np.load("fid_mnist.npz")
     mu_real    = tf.constant(stats["mu"],    dtype=tf.float32)
     sigma_real = tf.constant(stats["sigma"], dtype=tf.float32)
 

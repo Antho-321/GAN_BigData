@@ -9,7 +9,7 @@ from tensorflow.keras.optimizers import Adam
 # Importar desde nuestros módulos locales
 import config
 from model import build_generator, build_discriminator, build_gan
-from utils import sample_images, calculate_fid, scale_and_convert_to_rgb, guardar_imagenes_evaluacion, save_initial_images, save_real_images_sample
+from utils import sample_images, calculate_fid, scale_and_convert_to_rgb, guardar_imagenes_evaluacion
 
 def main():
     """Función principal para ejecutar el entrenamiento de la GAN."""
@@ -38,11 +38,6 @@ def main():
 
     # Cargar modelo para cálculo de FID
     inception_model = InceptionV3(include_top=False, pooling='avg', input_shape=config.INCEPTION_INPUT_SHAPE)
-
-    save_real_images_sample(X_train, config.GENERATED_IMAGES_DIR, num_images=16)
-
-    # --- 4. Bucle de Entrenamiento ---
-    save_initial_images(generator, config.LATENT_DIM, config.GENERATED_IMAGES_DIR, num_images=16)
 
     print("Imágenes iniciales guardadas. Comenzando entrenamiento…")
     valid = np.ones((config.BATCH_SIZE, 1))
@@ -85,7 +80,6 @@ def main():
 
     # --- 5. Evaluación Final ---
     guardar_imagenes_evaluacion(
-        X_train=X_train,
         generator=generator,
         latent_dim=config.LATENT_DIM,
         epochs=config.EPOCHS,

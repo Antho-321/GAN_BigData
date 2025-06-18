@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from scipy.linalg import sqrtm
 from tensorflow.keras.applications.inception_v3 import preprocess_input
+from PIL import Image
 
 def scale_and_convert_to_rgb(images, inception_input_shape):
     """Redimensiona imágenes y las convierte a 3 canales (RGB) para InceptionV3."""
@@ -82,3 +83,33 @@ def guardar_imagenes_evaluacion(X_train, generator, latent_dim, epochs, eval_dir
     plt.close(fig)
     print(f"Imágenes generadas guardadas en '{os.path.join(eval_dir, f'imagenes_generadas_final_epoch_{epochs}.png')}'")
     print("\n" + "="*50)
+
+def save_initial_images(generator, latent_dim, img_dir, num_images=16):
+    """
+    Genera y guarda num_images imágenes usando el generador, una sola vez
+    antes de comenzar el entrenamiento.
+
+    Args:
+        generator: modelo generador de la GAN.
+        latent_dim: dimensión del espacio latente.
+        img_dir: directorio donde se guardarán las imágenes.
+        num_images: número de muestras a generar.
+    """
+    # 1) Muestreo de ruido
+    noise = np.random.normal(0, 1, (num_images, latent_dim))
+    # 2) Generación de imágenes
+    gen_imgs = generator.predict(noise, verbose=0)
+    # 3) Reescalado de [-1,1] a [0,255]
+    gen_imgs = 0.5 * gen_imgs + 0.5
+    gen_imgs = (gen_imgs * 255).astype(np.uint8)
+
+    # 4) Guardar cada una
+    os.makedirs(img_dir, exist_ok=True)
+    for i, img in enumerate(gen_imgs):
+        # si es grayscale
+        if img.shape[-1] == 1:
+            img = img.squeeze(-1)
+            pil_img = Image.fromarray(img, mode='L')
+        else:
+            pil_img = Image.fromarray(img)
+        pil_img.save(os.path.join(img_dir, f"init_{i:03d}.png"))

@@ -94,18 +94,14 @@ def guardar_imagenes_evaluacion(generator, latent_dim, epochs, eval_dir, num_ima
     print("\n" + "="*50)
 
 def batch_fid(mu_real, sigma_real, acts_fake):
-    """
-    Differentiable FID for a batch of fake activations.
-    mu_real, sigma_real are tf.constants (no grad) of shape [2048] and [2048,2048].
-    acts_fake: tf.Tensor [B,2048] (grad flows back).
-    """
-    mu_fake   = tf.reduce_mean(acts_fake, axis=0)
-    diff_mu   = mu_fake - mu_real                      # [2048]
-    cov_fake  = tfp.stats.covariance(acts_fake)        # [2048,2048]
-    # Trace(Σ_real + Σ_fake - 2*(Σ_real*Σ_fake)^½)
-    covmean, _ = tf.linalg.sqrtm(tf.matmul(sigma_real, cov_fake))
-    # If sqrtm returns complex numbers we take only real part
-    covmean = tf.math.real(covmean)
-    fid = tf.reduce_sum(tf.square(diff_mu)) + \
-          tf.linalg.trace(sigma_real + cov_fake - 2.0 * covmean)
+    mu_fake  = tf.reduce_mean(acts_fake, axis=0)
+    diff_mu  = mu_fake - mu_real
+    cov_fake = tfp.stats.covariance(acts_fake)
+
+    # raíz de Σ_real · Σ_fake  (una sola salida)
+    cov_mean = tf.linalg.sqrtm(tf.matmul(sigma_real, cov_fake))
+    cov_mean = tf.math.real(cov_mean)          # si aparece parte imaginaria
+
+    fid = tf.reduce_sum(tf.square(diff_mu)) + tf.linalg.trace(
+            sigma_real + cov_fake - 2.0 * cov_mean)
     return fid

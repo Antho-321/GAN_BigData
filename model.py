@@ -36,11 +36,3 @@ def build_discriminator(img_shape):
     model.add(layers.Flatten())
     model.add(layers.Dense(1, activation='sigmoid'))
     return model
-
-def build_gan(generator, discriminator, latent_dim):
-    """Construye el modelo combinado de la GAN."""
-    discriminator.trainable = False
-    z = layers.Input(shape=(latent_dim,))
-    img = generator(z)
-    validity = discriminator(img)
-    return models.Model(z, validity, name="GAN")

@@ -6,24 +6,9 @@ from tensorflow.keras.applications.inception_v3 import InceptionV3
 from tensorflow.keras.optimizers import Adam
 
 import config
-from model import build_generator, build_discriminator, build_gan
+from model import build_generator, build_discriminator, batch_fid
 from utils import (sample_images, scale_and_convert_to_rgb,
                    guardar_imagenes_evaluacion)
-
-# --- FID auxiliar ---
-def batch_fid(mu_real, sigma_real, acts_fake):
-    """Calcula el FID para un batch de activaciones."""
-    mu_fake  = tf.reduce_mean(acts_fake, axis=0)
-    diff_mu  = mu_fake - mu_real
-    cov_fake = tfp.stats.covariance(acts_fake)
-    # Usa tf.linalg.sqrtm para calcular la raíz cuadrada de la matriz de covarianza
-    cov_mean, _ = tf.linalg.sqrtm(tf.matmul(sigma_real, cov_fake))
-    # Nos aseguramos de que el resultado sea real para evitar problemas numéricos
-    cov_mean = tf.math.real(cov_mean)
-    # Fórmula del FID
-    fid = tf.reduce_sum(tf.square(diff_mu)) + tf.linalg.trace(
-            sigma_real + cov_fake - 2.0 * cov_mean)
-    return fid
 
 # ---------- MAIN ----------
 def main():

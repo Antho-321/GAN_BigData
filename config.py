@@ -20,6 +20,7 @@ FID_BATCH_SIZE = 512 # Usar un batch más grande para un cálculo de FID más es
 # --- Rutas y Directorios ---
 GENERATED_IMAGES_DIR = "/content/drive/MyDrive/Colab Notebooks/generated_images"
 EVALUATION_DIR = "/content/drive/MyDrive/Colab Notebooks/evaluacion" # Puedes cambiar esta ruta
+CACHE_DIR            = "/content/drive/MyDrive/Colab Notebooks/cache_fid"
 
 # --- Semillas para reproducibilidad ---
 RANDOM_SEED = 42

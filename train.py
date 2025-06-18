@@ -1,92 +1,144 @@
-# train.py
-
-import os
-import numpy as np
+# --- IMPORTS ---
+import os, numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp      # ⬅️  1)  IMPORTANTE
 from tensorflow.keras.applications.inception_v3 import InceptionV3
 from tensorflow.keras.optimizers import Adam
 
-# Importar desde nuestros módulos locales
 import config
 from model import build_generator, build_discriminator, build_gan
-from utils import sample_images, calculate_fid, scale_and_convert_to_rgb, guardar_imagenes_evaluacion
+from utils import (sample_images, scale_and_convert_to_rgb,
+                   guardar_imagenes_evaluacion)
 
+# --- FID auxiliar ---
+def batch_fid(mu_real, sigma_real, acts_fake):
+    """Calcula el FID para un batch de activaciones."""
+    mu_fake  = tf.reduce_mean(acts_fake, axis=0)
+    diff_mu  = mu_fake - mu_real
+    cov_fake = tfp.stats.covariance(acts_fake)
+    # Usa tf.linalg.sqrtm para calcular la raíz cuadrada de la matriz de covarianza
+    cov_mean, _ = tf.linalg.sqrtm(tf.matmul(sigma_real, cov_fake))
+    # Nos aseguramos de que el resultado sea real para evitar problemas numéricos
+    cov_mean = tf.math.real(cov_mean)
+    # Fórmula del FID
+    fid = tf.reduce_sum(tf.square(diff_mu)) + tf.linalg.trace(
+            sigma_real + cov_fake - 2.0 * cov_mean)
+    return fid
+
+# ---------- MAIN ----------
 def main():
-    """Función principal para ejecutar el entrenamiento de la GAN."""
-    
+    """Función principal para el entrenamiento de la GAN con FID."""
     # --- 1. Carga y Preparación de Datos ---
     print("Cargando y preparando datos de MNIST...")
-    (X_train, _), (_, _) = tf.keras.datasets.mnist.load_data()
+    (X_train, _), (_,_) = tf.keras.datasets.mnist.load_data()
     X_train = (X_train.astype(np.float32) - 127.5) / 127.5
-    X_train = np.expand_dims(X_train, axis=-1)
-    
-    # Crear carpeta para imágenes generadas
+    X_train = np.expand_dims(X_train, axis=-1) # o X_train[..., None]
+
+    # Crear directorios si no existen
     os.makedirs(config.GENERATED_IMAGES_DIR, exist_ok=True)
+    os.makedirs(config.EVALUATION_DIR, exist_ok=True)
 
     # --- 2. Construcción de Modelos ---
-    print("Construyendo los modelos: Generador, Discriminador y GAN...")
-    generator = build_generator(config.LATENT_DIM)
+    print("Construyendo los modelos: Generador y Discriminador...")
+    generator     = build_generator(config.LATENT_DIM)
     discriminator = build_discriminator(config.IMG_SHAPE)
-    gan = build_gan(generator, discriminator, config.LATENT_DIM)
 
-    # --- 3. Compilación de Modelos ---
-    discriminator_optimizer = Adam(learning_rate=config.LEARNING_RATE, beta_1=config.ADAM_BETA_1)
-    gan_optimizer = Adam(learning_rate=config.LEARNING_RATE, beta_1=config.ADAM_BETA_1)
+    # --- 3. Optimizadores ---
+    disc_opt = Adam(config.LEARNING_RATE, beta_1=config.ADAM_BETA_1)
+    gen_opt  = Adam(config.LEARNING_RATE, beta_1=config.ADAM_BETA_1)
+
+    discriminator.compile(optimizer=disc_opt,
+                          loss='binary_crossentropy', metrics=['accuracy'])
+    # NOTA: El modelo GAN combinado no se compila aquí porque el generador se entrena
+    # de forma personalizada con la función `train_gen_step`.
+
+    # --- 4. Inception + Estadísticos Reales para FID ---
+    print("Cargando modelo Inception y estadísticos FID precalculados...")
+    inception = InceptionV3(include_top=False, pooling='avg',
+                            input_shape=config.INCEPTION_INPUT_SHAPE)
+    inception.trainable = False
     
-    discriminator.compile(optimizer=discriminator_optimizer, loss='binary_crossentropy', metrics=['accuracy'])
-    gan.compile(optimizer=gan_optimizer, loss='binary_crossentropy')
+    stats = np.load(os.path.join(config.CACHE_DIR, "fid_mnist.npz"))
+    mu_real    = tf.constant(stats["mu"],    dtype=tf.float32)
+    sigma_real = tf.constant(stats["sigma"], dtype=tf.float32)
 
-    # Cargar modelo para cálculo de FID
-    inception_model = InceptionV3(include_top=False, pooling='avg', input_shape=config.INCEPTION_INPUT_SHAPE)
+    # --- Configuración del Bucle de Entrenamiento ---
+    λ_FID = 10.0  # Hiperparámetro para ponderar la pérdida FID
+    bce   = tf.keras.losses.BinaryCrossentropy(from_logits=False)
 
-    print("Imágenes iniciales guardadas. Comenzando entrenamiento…")
-    valid = np.ones((config.BATCH_SIZE, 1))
-    fake = np.zeros((config.BATCH_SIZE, 1))
-
-    for epoch in range(config.EPOCHS + 1):
-        # --- Entrenar Discriminador ---
-        idx = np.random.randint(0, X_train.shape[0], config.BATCH_SIZE)
-        real_imgs = X_train[idx]
+    @tf.function
+    def train_gen_step():
+        """Paso de entrenamiento para el generador con pérdida adversaria y FID."""
+        noise  = tf.random.normal([config.BATCH_SIZE, config.LATENT_DIM])
+        valid  = tf.ones((config.BATCH_SIZE, 1), dtype=tf.float32)
         
-        noise = np.random.normal(0, 1, (config.BATCH_SIZE, config.LATENT_DIM))
-        gen_imgs = generator.predict(noise, verbose=0)
+        with tf.GradientTape() as tape:
+            # 1. Generar imágenes falsas
+            fake_imgs  = generator(noise, training=True)
+            # 2. Calcular pérdida adversaria (el generador intenta engañar al discriminador)
+            validity   = discriminator(fake_imgs, training=False)
+            adv_loss   = bce(valid, validity)
+            
+            # 3. Calcular pérdida FID
+            # Redimensionar y convertir a RGB para InceptionV3
+            fake_rgb   = scale_and_convert_to_rgb(fake_imgs,
+                                                  config.INCEPTION_INPUT_SHAPE)
+            # Obtener activaciones de Inception para las imágenes generadas
+            acts_fake  = inception(fake_rgb, training=False)
+            # Calcular FID respecto a los estadísticos de las imágenes reales
+            fid_loss   = batch_fid(mu_real, sigma_real, acts_fake)
+            
+            # 4. Pérdida total del generador
+            total_loss = adv_loss + λ_FID * fid_loss
+            
+        # Calcular y aplicar gradientes
+        grads = tape.gradient(total_loss, generator.trainable_variables)
+        gen_opt.apply_gradients(zip(grads, generator.trainable_variables))
+        
+        return adv_loss, fid_loss, total_loss
 
+    # Etiquetas para el entrenamiento del discriminador
+    valid = np.ones((config.BATCH_SIZE, 1))
+    fake  = np.zeros((config.BATCH_SIZE, 1))
+
+    print("Comenzando el bucle de entrenamiento...")
+    for epoch in range(config.EPOCHS + 1):
+        # --- 1) Entrenamiento del Discriminador ---
+        # Seleccionar un batch aleatorio de imágenes reales
+        idx        = np.random.randint(0, X_train.shape[0], config.BATCH_SIZE)
+        real_imgs  = X_train[idx]
+        
+        # Generar un batch de imágenes falsas
+        noise      = np.random.normal(0, 1, (config.BATCH_SIZE, config.LATENT_DIM))
+        gen_imgs   = generator.predict(noise, verbose=0)
+
+        # Entrenar el discriminador (primero con imágenes reales, luego con falsas)
         d_loss_real = discriminator.train_on_batch(real_imgs, valid)
-        d_loss_fake = discriminator.train_on_batch(gen_imgs, fake)
-        d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
+        d_loss_fake = discriminator.train_on_batch(gen_imgs,  fake)
+        d_loss      = 0.5 * np.add(d_loss_real, d_loss_fake)
 
-        # --- Entrenar Generador ---
-        noise = np.random.normal(0, 1, (config.BATCH_SIZE, config.LATENT_DIM))
-        g_loss = gan.train_on_batch(noise, valid)
+        # --- 2) Entrenamiento del Generador (con FID) ---
+        # Ejecutar un paso de entrenamiento para el generador
+        adv_loss, fid_loss, g_loss = train_gen_step()
 
-        # --- Reporte de Progreso y Evaluación (FID) ---
+        # --- 3) Reporte de Progreso y Muestreo de Imágenes ---
         if epoch % config.SAVE_INTERVAL == 0:
-            print(f"[{epoch}] D loss: {d_loss[0]:.4f}, acc: {100*d_loss[1]:.2f}% | G loss: {g_loss:.4f}", end="")
-            
-            sample_images(epoch, generator, config.LATENT_DIM, config.GENERATED_IMAGES_DIR)
+            print(f"[{epoch}] D loss: {d_loss[0]:.4f}, acc: {100*d_loss[1]:.2f}%"
+                  f" | G adv: {adv_loss:.4f} | FID term: {fid_loss:.2f}"
+                  f" | Total G: {g_loss:.4f}")
+            # Guardar imágenes de muestra para visualización
+            sample_images(epoch, generator, config.LATENT_DIM,
+                          config.GENERATED_IMAGES_DIR)
 
-            # Preparar imágenes para FID
-            idx_fid = np.random.randint(0, X_train.shape[0], config.FID_BATCH_SIZE)
-            real_fid_imgs = X_train[idx_fid]
-            noise_fid = np.random.normal(0, 1, (config.FID_BATCH_SIZE, config.LATENT_DIM))
-            gen_fid_imgs = generator.predict(noise_fid, verbose=0)
-            
-            real_fid_imgs_rgb = scale_and_convert_to_rgb(real_fid_imgs, config.INCEPTION_INPUT_SHAPE)
-            gen_fid_imgs_rgb = scale_and_convert_to_rgb(gen_fid_imgs, config.INCEPTION_INPUT_SHAPE)
-
-            # Calcular y mostrar FID
-            fid_score = calculate_fid(inception_model, real_fid_imgs_rgb, gen_fid_imgs_rgb)
-            print(f" | FID: {fid_score:.2f}")
-
-    # --- 5. Evaluación Final ---
+    # --- Evaluación Final ---
+    print("\nEntrenamiento completado. Guardando imágenes finales para evaluación...")
     guardar_imagenes_evaluacion(
-        generator=generator,
+        generator=generator, 
         latent_dim=config.LATENT_DIM,
-        epochs=config.EPOCHS,
+        epochs=config.EPOCHS, 
         eval_dir=config.EVALUATION_DIR
     )
-    
-    print("\nProceso de entrenamiento y evaluación completado.")
+    print("Proceso finalizado.")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

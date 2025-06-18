@@ -89,12 +89,15 @@ inception_model = InceptionV3(include_top=False, pooling='avg', input_shape=(75,
 
 def scale_and_convert_to_rgb(images):
     """ Redimensiona imágenes a 75x75 y las convierte a 3 canales (RGB) """
-    # Reescalar las imágenes de [-1, 1] a [0, 255]
-    images_rescaled = ((images + 1) * 127.5).astype('uint8')
+    # Reescalar las imágenes de [-1, 1] a [0.0, 255.0] y mantener el tipo float
+    images_rescaled = (images + 1) * 127.5  # This keeps it as a float32 tensor
+    
     # Redimensionar a 75x75
     images_resized = tf.image.resize(images_rescaled, (75, 75), method='nearest')
+    
     # Convertir de escala de grises a RGB
     images_rgb = tf.image.grayscale_to_rgb(images_resized)
+    
     return images_rgb
 
 def calculate_fid(model, images1, images2):

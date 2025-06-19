@@ -15,7 +15,7 @@ ADAM_BETA_1 = 0.5    # Adam optimizer beta1
 # --- Configuración para la Métrica FID ---
 # El input_shape mínimo para InceptionV3 es 75x75
 INCEPTION_INPUT_SHAPE = (75, 75, 3)
-FID_BATCH_SIZE = 512 # Usar un batch más grande para un cálculo de FID más estable
+FID_BATCH_SIZE = 16
 
 # --- Rutas y Directorios ---
 GENERATED_IMAGES_DIR = "/content/drive/MyDrive/Colab Notebooks/generated_images"

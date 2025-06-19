@@ -65,8 +65,8 @@ def main():
             
             # 3. Calcular pérdida FID
             # Redimensionar y convertir a RGB para InceptionV3
-            fake_rgb   = scale_and_convert_to_rgb(fake_imgs,
-                                                  config.INCEPTION_INPUT_SHAPE)
+            fid_subset = fake_imgs[:config.FID_BATCH_SIZE]
+            fake_rgb   = scale_and_convert_to_rgb(fid_subset, config.INCEPTION_INPUT_SHAPE)
             # Obtener activaciones de Inception para las imágenes generadas
             acts_fake  = inception(fake_rgb, training=False)
             # Calcular FID respecto a los estadísticos de las imágenes reales

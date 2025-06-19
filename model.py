@@ -1,104 +1,123 @@
 # -*- coding: utf-8 -*-
 """
-Model architectures for a simple GAN and an improved DCGAN.
-To be used for generating MNIST-like handwritten digits.
-
+Mini-SAGAN para MNIST
+=====================
+▪ Auto-atención 2-D (SAGAN)
+▪ Normalización espectral en el discriminator
+▪ LeakyReLU + BatchNorm (buenas prácticas DCGAN)
+TensorFlow 2.x + tensorflow-addons
 @author: IVAN
 """
 
-import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import (BatchNormalization, Dense, Flatten,
-                                     LeakyReLU, Reshape)
+from tensorflow.keras.layers import (Layer, Conv2D, Conv2DTranspose, Dense,
+                                     Reshape, Flatten, LeakyReLU,
+                                     BatchNormalization, Input)
 from tensorflow.keras.models import Sequential
+import tensorflow_addons as tfa
 
-# =============================================================================
-# Architecture 1: Simple GAN
-# Based on the first code example provided.
-# =============================================================================
 
-def build_simple_generator(latent_dim=150):
+# ---------------------------------------------------------------------------
+# 1.  Capa de Auto-Atención (versión 2-D estilo SAGAN)
+# ---------------------------------------------------------------------------
+class SelfAttention2D(Layer):
     """
-    Builds a simple Generator model.
-
-    Args:
-        latent_dim (int): The dimension of the input noise vector.
-
-    Returns:
-        A Keras Sequential model for the generator.
+    Auto-atención de imagen (SAGAN).  Fusión canal-espacio:
+        • θ, φ  : claves y consultas   (C//8 canales)
+        • g     : valores             (C//2 canales)
+        • γ     : peso entrenable que empieza en 0
     """
-    model = Sequential([
-        Dense(128, input_dim=latent_dim, activation='relu'),
-        Dense(784, activation='sigmoid'),
-        Reshape((28, 28))
-    ], name="simple_generator")
+    def __init__(self, channels):
+        super().__init__()
+        self.channels = channels
+        # Proyecciones 1×1
+        self.theta = Conv2D(channels // 8, kernel_size=1, padding='same')
+        self.phi   = Conv2D(channels // 8, kernel_size=1, padding='same')
+        self.g     = Conv2D(channels // 2, kernel_size=1, padding='same')
+        self.o     = Conv2D(channels,      kernel_size=1, padding='same')
+        # Escalar entrenable (γ) para balancear la rama de atención
+        self.gamma = self.add_weight(name='gamma', shape=[1],
+                                     initializer='zeros', trainable=True)
+
+    def call(self, x):
+        b, h, w, c = tf.shape(x)[0], tf.shape(x)[1], tf.shape(x)[2], self.channels
+        θ = tf.reshape(self.theta(x), [b, -1, c // 8])          # (B, HW, C/8)
+        φ = tf.reshape(self.phi(x),   [b, -1, c // 8])          # (B, HW, C/8)
+        g = tf.reshape(self.g(x),     [b, -1, c // 2])          # (B, HW, C/2)
+
+        β = tf.nn.softmax(tf.matmul(θ, φ, transpose_b=True))    # atención (HW × HW)
+        o = tf.matmul(β, g)                                     # (B, HW, C/2)
+        o = tf.reshape(o, [b, h, w, c // 2])
+        o = self.o(o)
+        return self.gamma * o + x                               # Residual
+
+
+# ---------------------------------------------------------------------------
+# 2.  Generador con auto-atención (resolución 28×28)
+# ---------------------------------------------------------------------------
+def build_sagan_generator(latent_dim=128):
+    model = Sequential(name="sagan_generator")
+
+    # Latent → 7×7×256
+    model.add(Input(shape=(latent_dim,)))
+    model.add(Dense(7 * 7 * 256, use_bias=False))
+    model.add(Reshape((7, 7, 256)))
+    model.add(BatchNormalization())
+    model.add(LeakyReLU(0.2))
+
+    # Auto-atención a baja resolución
+    model.add(SelfAttention2D(256))
+
+    # Upsample 14×14
+    model.add(Conv2DTranspose(128, kernel_size=4, strides=2, padding='same',
+                              use_bias=False))
+    model.add(BatchNormalization())
+    model.add(LeakyReLU(0.2))
+
+    # Auto-atención intermedia
+    model.add(SelfAttention2D(128))
+
+    # Upsample 28×28
+    model.add(Conv2DTranspose(64, kernel_size=4, strides=2, padding='same',
+                              use_bias=False))
+    model.add(BatchNormalization())
+    model.add(LeakyReLU(0.2))
+
+    # Salida 28×28×1 (tanh para mapear a [-1,1])
+    model.add(Conv2DTranspose(1, kernel_size=3, strides=1, padding='same',
+                              activation='tanh'))
     return model
 
-def build_simple_discriminator(img_shape=(28, 28)):
-    """
-    Builds a simple Discriminator model.
 
-    Args:
-        img_shape (tuple): The shape of the input image (e.g., (28, 28)).
+# ---------------------------------------------------------------------------
+# 3.  Discriminador con Normalización Espectral + Auto-Atención
+# ---------------------------------------------------------------------------
+SpectralConv2D = lambda *a, **k: tfa.layers.SpectralNormalization(
+    Conv2D(*a, **k), power_iterations=1)
 
-    Returns:
-        A Keras Sequential model for the discriminator.
-    """
-    model = Sequential([
-        Flatten(input_shape=img_shape),
-        Dense(128, activation='relu'),
-        Dense(1, activation='sigmoid')
-    ], name="simple_discriminator")
-    return model
+SpectralDense  = lambda units: tfa.layers.SpectralNormalization(Dense(units))
 
+def build_sagan_discriminator(img_shape=(28, 28, 1)):
+    model = Sequential(name="sagan_discriminator")
 
-# =============================================================================
-# Architecture 2: Improved GAN
-# Based on the second code example with LeakyReLU and Batch Normalization.
-# =============================================================================
+    model.add(Input(shape=img_shape))
 
-def build_improved_generator(latent_dim=200, img_shape=(28, 28)):
-    """
-    Builds an improved Generator model using LeakyReLU and BatchNormalization.
+    # 28×28 → 14×14
+    model.add(SpectralConv2D(64, kernel_size=4, strides=2, padding='same'))
+    model.add(LeakyReLU(0.2))
 
-    Args:
-        latent_dim (int): The dimension of the input noise vector.
-        img_shape (tuple): The shape of the output image.
+    # Auto-atención temprana
+    model.add(SelfAttention2D(64))
 
-    Returns:
-        A Keras Sequential model for the generator.
-    """
-    model = Sequential([
-        Dense(256, input_dim=latent_dim),
-        LeakyReLU(alpha=0.2),
-        BatchNormalization(momentum=0.8),
-        Dense(512),
-        LeakyReLU(alpha=0.2),
-        BatchNormalization(momentum=0.8),
-        Dense(1024),
-        LeakyReLU(alpha=0.2),
-        BatchNormalization(momentum=0.8),
-        Dense(np.prod(img_shape), activation='sigmoid'),
-        Reshape(img_shape)
-    ], name="improved_generator")
-    return model
+    # 14×14 → 7×7
+    model.add(SpectralConv2D(128, kernel_size=4, strides=2, padding='same'))
+    model.add(LeakyReLU(0.2))
 
-def build_improved_discriminator(img_shape=(28, 28)):
-    """
-    Builds an improved Discriminator model using LeakyReLU.
+    # 7×7 → 4×4
+    model.add(SpectralConv2D(256, kernel_size=4, strides=2, padding='same'))
+    model.add(LeakyReLU(0.2))
 
-    Args:
-        img_shape (tuple): The shape of the input image (e.g., (28, 28)).
+    model.add(Flatten())
+    model.add(SpectralDense(1))  # logits (sin activación sigmoide)
 
-    Returns:
-        A Keras Sequential model for the discriminator.
-    """
-    model = Sequential([
-        Flatten(input_shape=img_shape),
-        Dense(512),
-        LeakyReLU(alpha=0.2),
-        Dense(256),
-        LeakyReLU(alpha=0.2),
-        Dense(1, activation='sigmoid')
-    ], name="improved_discriminator")
     return model

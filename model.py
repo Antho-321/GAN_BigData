@@ -5,16 +5,16 @@ Mini-SAGAN para MNIST
 ▪ Auto-atención 2-D (SAGAN)
 ▪ Normalización espectral en el discriminator
 ▪ LeakyReLU + BatchNorm (buenas prácticas DCGAN)
-TensorFlow 2.x + tensorflow-addons
+TensorFlow 2.x
 @author: IVAN
 """
 
 import tensorflow as tf
 from tensorflow.keras.layers import (Layer, Conv2D, Conv2DTranspose, Dense,
                                      Reshape, Flatten, LeakyReLU,
-                                     BatchNormalization, Input)
+                                     BatchNormalization, Input,
+                                     SpectralNormalization)
 from tensorflow.keras.models import Sequential
-import tensorflow_addons as tfa
 
 
 # ---------------------------------------------------------------------------
@@ -24,7 +24,7 @@ class SelfAttention2D(Layer):
     """
     Auto-atención de imagen (SAGAN).  Fusión canal-espacio:
         • θ, φ  : claves y consultas   (C//8 canales)
-        • g     : valores             (C//2 canales)
+        • g     : valores            (C//2 canales)
         • γ     : peso entrenable que empieza en 0
     """
     def __init__(self, channels):
@@ -41,15 +41,15 @@ class SelfAttention2D(Layer):
 
     def call(self, x):
         b, h, w, c = tf.shape(x)[0], tf.shape(x)[1], tf.shape(x)[2], self.channels
-        θ = tf.reshape(self.theta(x), [b, -1, c // 8])          # (B, HW, C/8)
-        φ = tf.reshape(self.phi(x),   [b, -1, c // 8])          # (B, HW, C/8)
-        g = tf.reshape(self.g(x),     [b, -1, c // 2])          # (B, HW, C/2)
+        θ = tf.reshape(self.theta(x), [b, -1, c // 8])      # (B, HW, C/8)
+        φ = tf.reshape(self.phi(x),   [b, -1, c // 8])      # (B, HW, C/8)
+        g = tf.reshape(self.g(x),     [b, -1, c // 2])      # (B, HW, C/2)
 
-        β = tf.nn.softmax(tf.matmul(θ, φ, transpose_b=True))    # atención (HW × HW)
-        o = tf.matmul(β, g)                                     # (B, HW, C/2)
+        β = tf.nn.softmax(tf.matmul(θ, φ, transpose_b=True))  # atención (HW × HW)
+        o = tf.matmul(β, g)                                   # (B, HW, C/2)
         o = tf.reshape(o, [b, h, w, c // 2])
         o = self.o(o)
-        return self.gamma * o + x                               # Residual
+        return self.gamma * o + x                             # Residual
 
 
 # ---------------------------------------------------------------------------
@@ -92,10 +92,10 @@ def build_sagan_generator(latent_dim=128):
 # ---------------------------------------------------------------------------
 # 3.  Discriminador con Normalización Espectral + Auto-Atención
 # ---------------------------------------------------------------------------
-SpectralConv2D = lambda *a, **k: tfa.layers.SpectralNormalization(
+SpectralConv2D = lambda *a, **k: SpectralNormalization(
     Conv2D(*a, **k), power_iterations=1)
 
-SpectralDense  = lambda units: tfa.layers.SpectralNormalization(Dense(units))
+SpectralDense  = lambda units: SpectralNormalization(Dense(units))
 
 def build_sagan_discriminator(img_shape=(28, 28, 1)):
     model = Sequential(name="sagan_discriminator")

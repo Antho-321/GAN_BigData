@@ -148,10 +148,14 @@ def save_comparison_images(epoch, generator, latent_dim, real_dataset, save_path
     # Cerrar la figura para liberar memoria
     plt.close(fig)
 
+# --- 1. Funciones de Pérdida (Hinge Loss) ---
+# Implementación de Hinge Loss, que funciona mejor para SAGAN que BinaryCrossentropy.
 def d_loss_hinge(real_logits, fake_logits):
+    """Pérdida del discriminador (Hinge Loss)."""
     loss_real = tf.reduce_mean(tf.nn.relu(1. - real_logits))
     loss_fake = tf.reduce_mean(tf.nn.relu(1. + fake_logits))
     return loss_real + loss_fake
 
 def g_loss_hinge(fake_logits):
+    """Pérdida del generador (Hinge Loss)."""
     return -tf.reduce_mean(fake_logits)

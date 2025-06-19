@@ -7,7 +7,7 @@ Hiperparámetros y configuraciones para el entrenamiento del modelo SAGAN.
 import os
 
 # --- Hiperparámetros de Entrenamiento ---
-EPOCHS = 10000  # SAGAN puede necesitar más épocas para converger
+EPOCHS = 20  # SAGAN puede necesitar más épocas para converger
 BATCH_SIZE = 64   # Un batch size más pequeño es común en modelos complejos
 LEARNING_RATE = 0.0002
 BETA_1 = 0.5      # Parámetro recomendado para el optimizador Adam en GANs
@@ -27,3 +27,4 @@ FID_SAMPLES = 1000
 BASE_PATH = "/content/drive/MyDrive/Colab Notebooks/resultados_sagan"
 IMAGE_PATH = os.path.join(BASE_PATH, "images")
 COMPARISON_PATH = os.path.join(BASE_PATH, "comparison")
+MODEL_SAVE_PATH = os.path.join(BASE_PATH, "saved_models")

@@ -9,6 +9,7 @@ las mejores prácticas para estabilidad y rendimiento:
 - Dos optimizadores Adam con betas específicos (β1=0.0, β2=0.9)
 - Label smoothing para métricas
 - Bucle de entrenamiento personalizado con @tf.function para alta eficiencia
+- Lógica para guardar el modelo con el mejor FID Score.
 """
 import os
 import time
@@ -21,21 +22,7 @@ import config
 from data_loader import load_and_preprocess_mnist
 from model import build_sagan_generator, build_sagan_discriminator
 from utils import (sample_and_save_images, save_comparison_images,
-                   scale_images, calculate_fid)
-
-
-# --- 1. Funciones de Pérdida (Hinge Loss) ---
-# Implementación de Hinge Loss, que funciona mejor para SAGAN que BinaryCrossentropy.
-def d_loss_hinge(real_logits, fake_logits):
-    """Pérdida del discriminador (Hinge Loss)."""
-    loss_real = tf.reduce_mean(tf.nn.relu(1. - real_logits))
-    loss_fake = tf.reduce_mean(tf.nn.relu(1. + fake_logits))
-    return loss_real + loss_fake
-
-def g_loss_hinge(fake_logits):
-    """Pérdida del generador (Hinge Loss)."""
-    return -tf.reduce_mean(fake_logits)
-
+                   scale_images, calculate_fid, d_loss_hinge, g_loss_hinge)
 
 # --- 2. Clase Entrenadora con Bucle Personalizado ---
 # Encapsula los modelos, optimizadores y el paso de entrenamiento en una clase.
@@ -135,6 +122,15 @@ def train():
     # --- 3. Bucle de Entrenamiento Principal ---
     print("\nIniciando entrenamiento...")
     step = 0
+    
+    # <<-- NUEVO: Inicializar variable para el mejor FID -->>
+    best_fid = float('inf')
+    # <<-- NUEVO: Define la ruta donde guardar el mejor modelo (recomiendo añadirla a config.py) -->>
+    if not hasattr(config, 'MODEL_SAVE_PATH'):
+        config.MODEL_SAVE_PATH = "saved_models"
+    best_model_path = os.path.join(config.MODEL_SAVE_PATH, "best_fid_generator.h5")
+
+
     for epoch in range(config.EPOCHS):
         tic = time.time()
         for real_imgs_batch in dataset:
@@ -163,18 +159,30 @@ def train():
                 
                 fid_score = calculate_fid(inception_model, real_images_scaled, fake_images_scaled)
                 print(f"--- Paso {step:05d}: FID Score = {fid_score:.3f} ---")
-            
+                
+                # <<-- NUEVO: Lógica para guardar el mejor modelo basado en FID -->>
+                if fid_score < best_fid:
+                    best_fid = fid_score
+                    trainer.G.save_weights(best_model_path)
+                    print(f"★★★ Nuevo mejor FID: {best_fid:.3f}. ¡Modelo guardado en '{best_model_path}'! ★★★")
+
             step += 1
             
         print(f"⏱️  Época {epoch} terminada en {time.time()-tic:.1f}s")
 
 
 if __name__ == '__main__':
-    # Crear directorios para guardar las imágenes si no existen
+    # Crear directorios para guardar los resultados si no existen
     print(f"Las imágenes de muestra se guardarán en: {config.IMAGE_PATH}")
     print(f"Las comparaciones se guardarán en: {config.COMPARISON_PATH}")
+    # <<-- NUEVO: Asegúrate de que la ruta del modelo exista -->>
+    if not hasattr(config, 'MODEL_SAVE_PATH'):
+        config.MODEL_SAVE_PATH = "saved_models"
+    print(f"El mejor modelo se guardará en: {config.MODEL_SAVE_PATH}")
+    
     os.makedirs(config.IMAGE_PATH, exist_ok=True)
     os.makedirs(config.COMPARISON_PATH, exist_ok=True)
+    os.makedirs(config.MODEL_SAVE_PATH, exist_ok=True) # <-- NUEVA LÍNEA
     
     # Iniciar el proceso de entrenamiento
     train()

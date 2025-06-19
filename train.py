@@ -128,7 +128,7 @@ def train():
     # <<-- NUEVO: Define la ruta donde guardar el mejor modelo (recomiendo añadirla a config.py) -->>
     if not hasattr(config, 'MODEL_SAVE_PATH'):
         config.MODEL_SAVE_PATH = "saved_models"
-    best_model_path = os.path.join(config.MODEL_SAVE_PATH, "best_fid_generator.h5")
+    best_model_path = os.path.join(config.MODEL_SAVE_PATH, "best_fid_generator.weights.h5")
 
 
     for epoch in range(config.EPOCHS):

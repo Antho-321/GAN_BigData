@@ -10,7 +10,7 @@ def load_and_preprocess_mnist(normalization_range='0_to_1'):
 
     Args:
         normalization_range (str): '0_to_1' para normalizar a [0, 1]
-                                   '-1_to_1' para normalizar a [-1, 1].
+                                     '-1_to_1' para normalizar a [-1, 1].
     
     Returns:
         numpy.ndarray: El conjunto de entrenamiento de imágenes MNIST.
@@ -29,4 +29,11 @@ def load_and_preprocess_mnist(normalization_range='0_to_1'):
     else:
         raise ValueError("El rango de normalización debe ser '0_to_1' o '-1_to_1'")
         
-    return X_train
+    # (1) Añadir dimensión de canal aquí mismo
+    X_train = np.expand_dims(X_train, -1)      # (N,28,28,1)
+    
+    # (2) Barajar por si luego usas tf.data
+    idx = np.random.permutation(len(X_train))
+    X_train = X_train[idx]
+    
+    return X_train.astype("float32")

@@ -147,3 +147,11 @@ def save_comparison_images(epoch, generator, latent_dim, real_dataset, save_path
     
     # Cerrar la figura para liberar memoria
     plt.close(fig)
+
+def d_loss_hinge(real_logits, fake_logits):
+    loss_real = tf.reduce_mean(tf.nn.relu(1. - real_logits))
+    loss_fake = tf.reduce_mean(tf.nn.relu(1. + fake_logits))
+    return loss_real + loss_fake
+
+def g_loss_hinge(fake_logits):
+    return -tf.reduce_mean(fake_logits)

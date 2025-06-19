@@ -1,7 +1,6 @@
 # --- IMPORTS ---
 import os, numpy as np
 import tensorflow as tf
-import tensorflow_probability as tfp      # ⬅️  1)  IMPORTANTE
 from tensorflow.keras.applications.inception_v3 import InceptionV3
 from tensorflow.keras.optimizers import Adam
 

@@ -7,6 +7,7 @@ import tensorflow as tf
 from scipy.linalg import sqrtm
 from tensorflow.keras.applications.inception_v3 import preprocess_input
 from PIL import Image
+import tensorflow_probability as tfp      # ⬅️  1)  IMPORTANTE
 
 def scale_and_convert_to_rgb(images, inception_input_shape):
     """

@@ -95,30 +95,26 @@ def guardar_imagenes_evaluacion(generator, latent_dim, epochs, eval_dir, num_ima
     print("\n" + "="*50)
 
 def batch_fid(mu_real, sigma_real, acts_fake):
-    # 1) Usa float16 para reducir RAM **solo** en las activaciones
+    # 1) Activaciones en float16
     acts_fake_f16 = tf.cast(acts_fake, tf.float16)
     mu_fake_f16   = tf.reduce_mean(acts_fake_f16, axis=0)
     diff_mu_f16   = mu_fake_f16 - tf.cast(mu_real, tf.float16)
 
-    # 2) Covarianza también puede calcularse en f16
-    cov_fake_f16  = tf.cast(tfp.stats.covariance(acts_fake_f16), tf.float16)
+    # 2) Covarianza en float16
+    cov_fake_f16   = tf.cast(tfp.stats.covariance(acts_fake_f16), tf.float16)
+    sigma_real_f16 = tf.cast(sigma_real, tf.float16)   # ← añadido
 
-    # 3) Pero sqrtm requiere f32 → convierte justo antes de llamarla
-    cov_fake_f32  = tf.cast(cov_fake_f16,  tf.float32)
-    sigma_real_f32= tf.cast(sigma_real,    tf.float32)
-
-    # Mover a CPU si quieres liberar VRAM
+    # 3) sqrtm en float32 (CPU)
+    cov_fake_f32   = tf.cast(cov_fake_f16,  tf.float32)
+    sigma_real_f32 = tf.cast(sigma_real,    tf.float32)
     with tf.device("/CPU:0"):
         cov_mean_f32 = tf.linalg.sqrtm(tf.matmul(sigma_real_f32, cov_fake_f32))
-
     cov_mean_f32 = tf.math.real(cov_mean_f32)
 
-    # 4) Vuelve a f16 para acabar la fórmula (opcional)
+    # 4) De vuelta a float16
     cov_mean_f16 = tf.cast(cov_mean_f32, tf.float16)
 
     fid_f16 = tf.reduce_sum(tf.square(diff_mu_f16)) + tf.linalg.trace(
-                tf.cast(sigma_real_f16, tf.float16) +
-                cov_fake_f16 - 2.0 * cov_mean_f16)
+                sigma_real_f16 + cov_fake_f16 - 2.0 * cov_mean_f16)
 
-    # Devuelve en float32 por claridad
-    return tf.cast(fid_f16, tf.float32)
+    return tf.cast(fid_f16, tf.float32)  # salida en float32

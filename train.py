@@ -105,14 +105,6 @@ def train():
 
 
 if __name__ == '__main__':
-    # Prerrequisito: Asegúrate de tener tensorflow-addons instalado
-    try:
-        import tensorflow_addons as tfa
-    except ImportError:
-        print("Error: tensorflow-addons no está instalado.")
-        print("Por favor, instálalo con: pip install tensorflow-addons")
-        exit()
-
     # Crear directorios para guardar las imágenes
     print(f"Las imágenes de muestra se guardarán en: {config.IMAGE_PATH}")
     print(f"Las comparaciones se guardarán en: {config.COMPARISON_PATH}")

@@ -145,7 +145,7 @@ def train():
             if step % 100 == 0:
                 acc = trainer.d_accuracy.result().numpy() * 100
                 print(f"Época {epoch:03d} St.{step:05d} [D loss: {d_loss:.4f}, acc.: {acc:.2f}%] [G loss: {g_loss:.4f}]")
-                trainer.d_accuracy.reset_states()
+                trainer.d_accuracy.reset_state()
 
             if step % config.SAMPLE_INTERVAL == 0:
                 # Guardar imágenes de muestra y comparaciones

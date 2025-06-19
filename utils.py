@@ -8,17 +8,24 @@ de métricas (FID) y la generación de imágenes de muestra.
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import sqrtm
-from skimage.transform import resize
+import tensorflow as tf
 import os
 
 def scale_images(images, new_shape):
-    """Redimensiona imágenes a un nuevo tamaño y las convierte a formato RGB."""
-    images_list = []
-    for image in images:
-        new_image = resize(image, new_shape, 0)
-        new_image_rgb = np.stack([new_image] * 3, axis=-1)
-        images_list.append(new_image_rgb)
-    return np.asarray(images_list)
+    """
+    Redimensiona y convierte un lote de imágenes en escala de grises a formato RGB
+    utilizando operaciones vectorizadas de TensorFlow para máxima eficiencia.
+    """
+    # 1. Redimensiona el LOTE COMPLETO de imágenes (p.ej., de 28x28 a 75x75)
+    #    tf.image.resize es una operación vectorizada.
+    resized_images = tf.image.resize(images, new_shape[:2])
+
+    # 2. Convierte el LOTE COMPLETO de escala de grises a RGB.
+    #    Esta función maneja correctamente las dimensiones, pasando de
+    #    (batch, H, W, 1) a (batch, H, W, 3).
+    rgb_images = tf.image.grayscale_to_rgb(resized_images)
+
+    return rgb_images
 
 def calculate_fid(model, images1, images2):
     """Calcula el Fréchet Inception Distance (FID) entre dos grupos de imágenes."""

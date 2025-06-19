@@ -95,36 +95,30 @@ def guardar_imagenes_evaluacion(generator, latent_dim, epochs, eval_dir, num_ima
     print("\n" + "="*50)
 
 def batch_fid(mu_real, sigma_real, acts_fake):
-    """
-    Calcula la distancia de Fréchet Inception (FID) para un lote de activaciones.
+    # 1) Usa float16 para reducir RAM **solo** en las activaciones
+    acts_fake_f16 = tf.cast(acts_fake, tf.float16)
+    mu_fake_f16   = tf.reduce_mean(acts_fake_f16, axis=0)
+    diff_mu_f16   = mu_fake_f16 - tf.cast(mu_real, tf.float16)
 
-    Args:
-        mu_real: Media de las activaciones reales (precalculada).
-        sigma_real: Matriz de covarianza de las activaciones reales (precalculada).
-        acts_fake: Activaciones generadas por el modelo (fake).
+    # 2) Covarianza también puede calcularse en f16
+    cov_fake_f16  = tf.cast(tfp.stats.covariance(acts_fake_f16), tf.float16)
 
-    Returns:
-        El valor de FID para el lote.
-    """
-    # --- Inicio de la implementación solicitada ---
+    # 3) Pero sqrtm requiere f32 → convierte justo antes de llamarla
+    cov_fake_f32  = tf.cast(cov_fake_f16,  tf.float32)
+    sigma_real_f32= tf.cast(sigma_real,    tf.float32)
 
-    # Convertir las entradas a float16
-    mu_real_f16    = tf.cast(mu_real,    tf.float16)
-    sigma_real_f16 = tf.cast(sigma_real, tf.float16)
-    acts_fake_f16  = tf.cast(acts_fake,  tf.float16)
+    # Mover a CPU si quieres liberar VRAM
+    with tf.device("/CPU:0"):
+        cov_mean_f32 = tf.linalg.sqrtm(tf.matmul(sigma_real_f32, cov_fake_f32))
 
-    # Calcular la media y la diferencia de medias con las activaciones fake en float16
-    mu_fake_f16 = tf.reduce_mean(acts_fake_f16, axis=0)
-    diff_mu_f16 = mu_fake_f16 - mu_real_f16
+    cov_mean_f32 = tf.math.real(cov_mean_f32)
 
-    # Calcular la covarianza de las activaciones fake y la raíz de la matriz en float16
-    cov_fake_f16 = tf.cast(tfp.stats.covariance(acts_fake_f16), tf.float16)
-    cov_mean_f16 = tf.linalg.sqrtm(tf.matmul(sigma_real_f16, cov_fake_f16))
-    cov_mean_f16 = tf.math.real(cov_mean_f16) # Tomar la parte real si aparecen números complejos
+    # 4) Vuelve a f16 para acabar la fórmula (opcional)
+    cov_mean_f16 = tf.cast(cov_mean_f32, tf.float16)
 
-    # El cálculo final del FID se realiza utilizando los tensores en float16.
-    # Se convierte el resultado final a float32 si es necesario para mayor precisión en la salida.
-    fid = tf.reduce_sum(tf.square(diff_mu_f16)) + tf.linalg.trace(
-            sigma_real_f16 + cov_fake_f16 - 2.0 * cov_mean_f16)
-            
-    return tf.cast(fid, tf.float32)
+    fid_f16 = tf.reduce_sum(tf.square(diff_mu_f16)) + tf.linalg.trace(
+                tf.cast(sigma_real_f16, tf.float16) +
+                cov_fake_f16 - 2.0 * cov_mean_f16)
+
+    # Devuelve en float32 por claridad
+    return tf.cast(fid_f16, tf.float32)

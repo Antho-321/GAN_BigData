@@ -24,6 +24,6 @@ SAMPLE_INTERVAL = 1000
 FID_SAMPLES = 1000
 
 # --- Rutas de Archivos ---
-BASE_PATH = "resultados_sagan"
+BASE_PATH = "/content/drive/MyDrive/Colab Notebooks/resultados_sagan"
 IMAGE_PATH = os.path.join(BASE_PATH, "images")
 COMPARISON_PATH = os.path.join(BASE_PATH, "comparison")
